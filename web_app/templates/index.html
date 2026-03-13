@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SLASH VPN Bot Panel</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: #e0e0e0; min-height: 100vh; padding: 20px; }
+  h1 { color: #7c6dfa; font-size: 1.5rem; margin-bottom: 4px; }
+  h2 { font-size: 1rem; color: #aaa; font-weight: 500; margin: 24px 0 10px; text-transform: uppercase; letter-spacing: 1px; }
+  .header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; padding-bottom: 16px; border-bottom: 1px solid #222; }
+  .badge { background: #1a1a2e; border: 1px solid #333; border-radius: 20px; padding: 4px 12px; font-size: 0.8rem; color: #7c6dfa; }
+  .card { background: #16161e; border: 1px solid #222; border-radius: 10px; padding: 18px; margin-bottom: 14px; }
+  .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .card-header h3 { font-size: 1rem; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #4caf50; }
+  .status-dot.offline { background: #f44; }
+  label { display: block; font-size: 0.8rem; color: #888; margin-bottom: 4px; margin-top: 10px; }
+  input[type="text"], input[type="password"], input[type="number"], textarea, select {
+    width: 100%; background: #0f0f13; border: 1px solid #333; border-radius: 6px;
+    padding: 8px 10px; color: #e0e0e0; font-size: 0.9rem;
+  }
+  input:focus, textarea:focus { outline: none; border-color: #7c6dfa; }
+  textarea { resize: vertical; min-height: 70px; font-family: inherit; }
+  button, .btn { background: #7c6dfa; color: #fff; border: none; border-radius: 6px; padding: 8px 16px; cursor: pointer; font-size: 0.85rem; transition: background 0.2s; }
+  button:hover, .btn:hover { background: #6456e0; }
+  .btn-sm { padding: 5px 10px; font-size: 0.78rem; }
+  .btn-danger { background: #8b2222; }
+  .btn-danger:hover { background: #a33; }
+  .btn-secondary { background: #333; }
+  .btn-secondary:hover { background: #444; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+  .queue-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #0f0f13; border-radius: 6px; margin-bottom: 6px; }
+  .queue-meta { font-size: 0.78rem; color: #666; }
+  .msg-banner { background: #1a2a1a; border: 1px solid #4caf50; border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; color: #4caf50; font-size: 0.9rem; }
+  .tabs { display: flex; gap: 2px; margin-bottom: 16px; border-bottom: 1px solid #222; }
+  .tab { padding: 8px 16px; cursor: pointer; font-size: 0.85rem; color: #666; border-bottom: 2px solid transparent; }
+  .tab.active { color: #7c6dfa; border-bottom-color: #7c6dfa; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .sep { height: 1px; background: #222; margin: 16px 0; }
+  details summary { cursor: pointer; color: #7c6dfa; font-size: 0.85rem; margin-top: 12px; }
+  details[open] summary { margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🔒 SLASH VPN Bot</h1>
+  <span class="badge">{{ queue_count }} в очереди</span>
+  <span class="badge">Интервал: {{ interval }} ч.</span>
+</div>
+
+{% if request.query_params.get('msg') %}
+<div class="msg-banner">✅ Операция выполнена успешно</div>
+{% endif %}
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('accounts')">Аккаунты</div>
+  <div class="tab" onclick="switchTab('add')">Добавить</div>
+  <div class="tab" onclick="switchTab('queue')">Очередь</div>
+  <div class="tab" onclick="switchTab('settings')">Настройки</div>
+</div>
+
+<!-- TAB: Аккаунты -->
+<div class="tab-content active" id="tab-accounts">
+  {% if not accounts %}
+    <p style="color:#666">Нет добавленных аккаунтов.</p>
+  {% endif %}
+  {% for acc in accounts %}
+  <div class="card">
+    <div class="card-header">
+      <div class="status-dot {% if not acc.in_cache %}offline{% endif %}"></div>
+      <h3>@{{ acc.username or acc.login }}</h3>
+      <span style="font-size:0.78rem;color:#555">{{ acc.login }}</span>
+      {% if acc.has_image %}<span style="font-size:0.75rem;color:#4caf50">🖼 есть фото</span>{% else %}<span style="font-size:0.75rem;color:#888">нет фото</span>{% endif %}
+    </div>
+
+    <div class="grid">
+      <!-- Промпты -->
+      <form method="post" action="/set_prompts">
+        <input type="hidden" name="login" value="{{ acc.login }}">
+        <label>Промпт постов</label>
+        <textarea name="account_prompt" rows="4">{{ acc.account_prompt or '' }}</textarea>
+        <label>Промпт тем</label>
+        <textarea name="topic_prompt" rows="2">{{ acc.topic_prompt or '' }}</textarea>
+        <button type="submit" class="btn-sm" style="margin-top:8px">Сохранить промпты</button>
+      </form>
+
+      <div>
+        <!-- Картинка -->
+        <form method="post" action="/upload_image" enctype="multipart/form-data">
+          <input type="hidden" name="login" value="{{ acc.login }}">
+          <label>Загрузить картинку (JPG)</label>
+          <input type="file" name="file" accept="image/jpeg,image/png" style="margin-bottom:6px">
+          <button type="submit" class="btn-sm">Загрузить</button>
+        </form>
+
+        <div class="sep"></div>
+
+        <!-- Генерация серии -->
+        <form method="post" action="/generate_series">
+          <input type="hidden" name="login" value="{{ acc.login }}">
+          <label>Тема для новой серии</label>
+          <input type="text" name="topic" placeholder="Напр: слежка через публичный Wi-Fi">
+          <button type="submit" class="btn-sm" style="margin-top:6px">Генерировать</button>
+        </form>
+
+        <form method="post" action="/auto_series" style="margin-top:8px">
+          <input type="hidden" name="login" value="{{ acc.login }}">
+          <button type="submit" class="btn-sm btn-secondary">🎲 Авто-тема + серия</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- TAB: Добавить аккаунт -->
+<div class="tab-content" id="tab-add">
+  <div class="card">
+    <h3 style="margin-bottom:14px">Через Selenium (логин/пароль)</h3>
+    <p style="font-size:0.82rem;color:#888;margin-bottom:12px">Selenium открывает браузер headless и авторизуется. Может сломаться если Threads изменит вёрстку.</p>
+    <form method="post" action="/add_account">
+      <label>Логин (Instagram/Threads)</label>
+      <input type="text" name="login" required placeholder="username">
+      <label>Пароль</label>
+      <input type="password" name="password" required>
+      <button type="submit" style="margin-top:10px">Авторизовать</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom:14px">Вручную через cookies</h3>
+    <p style="font-size:0.82rem;color:#888;margin-bottom:12px">
+      DevTools → Application → Cookies → threads.net → скопируй <code>sessionid</code> и <code>csrftoken</code>.
+    </p>
+    <form method="post" action="/add_account_manual">
+      <label>Логин</label>
+      <input type="text" name="login" required>
+      <label>sessionid</label>
+      <input type="text" name="session_id" required>
+      <label>csrftoken</label>
+      <input type="text" name="csrf_token" required>
+      <button type="submit" style="margin-top:10px">Добавить</button>
+    </form>
+  </div>
+</div>
+
+<!-- TAB: Очередь -->
+<div class="tab-content" id="tab-queue">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h3>Очередь постов ({{ queue_count }})</h3>
+      <form method="post" action="/post_now">
+        <button type="submit" class="btn-sm">▶ Опубликовать первую</button>
+      </form>
+    </div>
+    {% if queue %}
+      {% for item in queue %}
+      <div class="queue-item">
+        <div>
+          <span style="font-size:0.85rem">{{ item.topic }}</span>
+          <div class="queue-meta">{{ item.account_login }} · {{ item.added_at[:10] }}</div>
+        </div>
+        <form method="post" action="/delete_queue_item">
+          <input type="hidden" name="item_id" value="{{ item.id }}">
+          <button type="submit" class="btn-sm btn-danger">✕</button>
+        </form>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p style="color:#555">Очередь пуста</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom:12px">Архив (последние 10)</h3>
+    {% for item in archive %}
+    <div class="queue-item">
+      <span style="font-size:0.85rem">{{ item.topic }}</span>
+      <div class="queue-meta">{{ item.account_login }} · {{ item.posted_at[:10] }}</div>
+    </div>
+    {% else %}
+    <p style="color:#555">Пусто</p>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- TAB: Настройки -->
+<div class="tab-content" id="tab-settings">
+  <div class="card">
+    <h3 style="margin-bottom:14px">Автопостинг</h3>
+    <form method="post" action="/set_interval">
+      <label>Интервал (часов между публикациями)</label>
+      <input type="number" name="interval_hours" value="{{ interval }}" min="1" max="168" style="width:120px">
+      <button type="submit" style="margin-top:10px">Сохранить</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom:10px">API-статус</h3>
+    <code style="font-size:0.82rem;color:#888">GET /api/status</code>
+  </div>
+</div>
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  const tabs = ['accounts','add','queue','settings'];
+  const idx = tabs.indexOf(name);
+  document.querySelectorAll('.tab')[idx].classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+// Авто-открыть нужный таб из URL
+const msg = new URLSearchParams(location.search).get('msg');
+if (msg) setTimeout(() => document.querySelector('.msg-banner')?.remove(), 4000);
+</script>
+
+</body>
+</html>

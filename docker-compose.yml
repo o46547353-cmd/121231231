@@ -8,7 +8,6 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./data:/app/data
       - ./images:/app/images
       - ./slash_vpn_bot.db:/app/slash_vpn_bot.db
     environment:

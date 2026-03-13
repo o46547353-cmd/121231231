@@ -14,12 +14,11 @@ RUN mkdir -p /app/images /app/logs
 
 EXPOSE 8000
 
-# Healthcheck: проверяем web-панель каждые 30 сек
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
     CMD curl -f http://localhost:8000/ || exit 1
 
-# bot.py перезапускается при падении через shell-loop
 CMD ["sh", "-c", "\
+    mkdir -p /app/images && \
     uvicorn web_app.main:app --host 0.0.0.0 --port 8000 --log-level info & \
     while true; do \
         echo '[BOOT] Starting bot.py...'; \
